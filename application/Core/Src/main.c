@@ -21,7 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdint.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -97,6 +97,7 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+    HAL_UART_Transmit(&huart1, (uint8_t *)"Hello, World!\r\n", sizeof("Hello, World!\r\n") - 1, HAL_MAX_DELAY);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
