@@ -38,7 +38,7 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
+#define MS2TICKS(ms) ((ms * osKernelGetTickFreq()) / 1000)
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -277,7 +277,9 @@ void StartDefaultTask(void *argument)
   /* Infinite loop */
   for (;;)
   {
-    osDelay(1);
+    tick += MS2TICKS(15); // next wake time (15 ms period)
+    printf("Hello World\r\n");
+    osDelayUntil(tick);
   }
   /* USER CODE END 5 */
 }
