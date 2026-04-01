@@ -51,7 +51,7 @@ const osThreadAttr_t defaultTask_attributes = {
     .priority = (osPriority_t)osPriorityNormal,
     .stack_size = 128 * 4};
 /* USER CODE BEGIN PV */
-
+volatile uint8_t button_pressed = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -244,11 +244,22 @@ static void MX_USART1_UART_Init(void)
  */
 static void MX_GPIO_Init(void)
 {
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
   /* USER CODE BEGIN MX_GPIO_Init_1 */
   /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOA_CLK_ENABLE();
+
+  /*Configure GPIO pin : CFG_SW_Pin */
+  GPIO_InitStruct.Pin = CFG_SW_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(CFG_SW_GPIO_Port, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI4_15_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI4_15_IRQn);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
   /* USER CODE END MX_GPIO_Init_2 */
@@ -259,6 +270,22 @@ int _write(int file, char *ptr, int len)
 {
   HAL_UART_Transmit(&huart1, (uint8_t *)ptr, len, HAL_MAX_DELAY);
   return len;
+}
+
+void HAL_GPIO_EXTI_Falling_Callback(uint16_t GPIO_Pin)
+{
+  if (GPIO_Pin == CFG_SW_Pin)
+  {
+    if (HAL_GPIO_ReadPin(CFG_SW_GPIO_Port, CFG_SW_Pin) == GPIO_PIN_RESET)
+    {
+      // Set any flag, and use this flag in main to process the event
+      button_pressed++;
+    }
+  }
+  else
+  {
+    __NOP();
+  }
 }
 
 /* USER CODE END 4 */

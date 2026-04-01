@@ -49,6 +49,7 @@
 void NMI_Handler(void);
 void HardFault_Handler(void);
 void SysTick_Handler(void);
+void EXTI4_15_IRQHandler(void);
 /* USER CODE BEGIN EFP */
 
 /* USER CODE END EFP */
