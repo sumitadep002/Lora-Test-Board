@@ -39,26 +39,32 @@
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
 #define MS2TICKS(ms) ((ms * osKernelGetTickFreq()) / 1000)
+#define MILLIS() osKernelGetTickCount()
+#define USER_INPUT_TIMEOUT_MS 1000
+#define USER_INPUT_TIME_MS_A 5000
+#define USER_INPUT_TIME_MS_B 9000
+#define USER_INPUT_TIMEOVERFLOW 15000
+#define EVT_GPIO_PRESSED 0x01
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
 UART_HandleTypeDef huart1;
 
 /* Definitions for defaultTask */
-osThreadId_t defaultTaskHandle;
-const osThreadAttr_t defaultTask_attributes = {
-    .name = "defaultTask",
+osThreadId_t config_task_handle;
+const osThreadAttr_t config_task_attributes = {
+    .name = "config_task",
     .priority = (osPriority_t)osPriorityNormal,
     .stack_size = 128 * 4};
 /* USER CODE BEGIN PV */
-volatile uint8_t button_pressed = 0;
+static uint8_t block_gpio_interrupt = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART1_UART_Init(void);
-void StartDefaultTask(void *argument);
+void config_task_handler(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -124,7 +130,7 @@ int main(void)
 
   /* Create the thread(s) */
   /* creation of defaultTask */
-  defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
+  config_task_handle = osThreadNew(config_task_handler, NULL, &config_task_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -258,7 +264,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(CFG_SW_GPIO_Port, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI4_15_IRQn, 0, 0);
+  HAL_NVIC_SetPriority(EXTI4_15_IRQn, 3, 0);
   HAL_NVIC_EnableIRQ(EXTI4_15_IRQn);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
@@ -274,13 +280,10 @@ int _write(int file, char *ptr, int len)
 
 void HAL_GPIO_EXTI_Falling_Callback(uint16_t GPIO_Pin)
 {
-  if (GPIO_Pin == CFG_SW_Pin)
+  if (GPIO_Pin == CFG_SW_Pin && block_gpio_interrupt == 0)
   {
-    if (HAL_GPIO_ReadPin(CFG_SW_GPIO_Port, CFG_SW_Pin) == GPIO_PIN_RESET)
-    {
-      // Set any flag, and use this flag in main to process the event
-      button_pressed++;
-    }
+    block_gpio_interrupt = 1;
+    osThreadFlagsSet(config_task_handle, EVT_GPIO_PRESSED);
   }
   else
   {
@@ -297,18 +300,78 @@ void HAL_GPIO_EXTI_Falling_Callback(uint16_t GPIO_Pin)
  * @retval None
  */
 /* USER CODE END Header_StartDefaultTask */
-void StartDefaultTask(void *argument)
+void config_task_handler(void *argument)
 {
   /* USER CODE BEGIN 5 */
-  uint32_t tick = osKernelGetTickCount();
+  uint32_t flags;
+  printf("config-user-started\r\n");
   /* Infinite loop */
   for (;;)
   {
-    tick += MS2TICKS(15); // next wake time (15 ms period)
-    printf("Hello World\r\n");
-    osDelayUntil(tick);
+    flags = osThreadFlagsWait(EVT_GPIO_PRESSED, osFlagsWaitAny, osWaitForever);
+    if (flags & EVT_GPIO_PRESSED)
+    {
+      osDelay(MS2TICKS(200)); // debounce delay
+      uint32_t triggerred_time = MILLIS();
+      while (GPIO_PIN_RESET == HAL_GPIO_ReadPin(CFG_SW_GPIO_Port, CFG_SW_Pin))
+      {
+        osDelay(MS2TICKS(250));
+        if (MILLIS() - triggerred_time > USER_INPUT_TIMEOVERFLOW)
+        {
+          printf("Input time overflow\r\n");
+          break;
+        }
+      }
+
+      // check if the button was released within expected time
+      uint32_t input_time = MILLIS() - triggerred_time;
+
+      printf("Button was pressed for %lu ms\r\n", input_time);
+
+      if (input_time < USER_INPUT_TIMEOUT_MS)
+      {
+        printf("USER_INPUT_TIMEOUT_MS\r\n");
+      }
+      else if (input_time < USER_INPUT_TIME_MS_A)
+      {
+        printf("USER_INPUT_TIME_MS_A\r\n");
+      }
+      else if (input_time < USER_INPUT_TIME_MS_B)
+      {
+        printf("USER_INPUT_TIME_MS_B\r\n");
+      }
+      else if (input_time < USER_INPUT_TIMEOVERFLOW)
+      {
+        printf("USER_INPUT_TIMEOVERFLOW\r\n");
+      }
+
+      // clear the flag once processed
+      block_gpio_interrupt = 0;
+    }
   }
   /* USER CODE END 5 */
+}
+
+/**
+ * @brief  Period elapsed callback in non blocking mode
+ * @note   This function is called  when TIM6 interrupt took place, inside
+ * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+ * a global variable "uwTick" used as application time base.
+ * @param  htim : TIM handle
+ * @retval None
+ */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  /* USER CODE BEGIN Callback 0 */
+
+  /* USER CODE END Callback 0 */
+  if (htim->Instance == TIM6)
+  {
+    HAL_IncTick();
+  }
+  /* USER CODE BEGIN Callback 1 */
+
+  /* USER CODE END Callback 1 */
 }
 
 /**
