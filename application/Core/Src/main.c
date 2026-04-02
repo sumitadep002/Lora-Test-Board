@@ -39,6 +39,11 @@
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
 #define MS2TICKS(ms) ((ms * osKernelGetTickFreq()) / 1000)
+#define MILLIS() osKernelGetTickCount()
+#define USER_INPUT_TIMEOUT_MS 1000
+#define USER_INPUT_TIME_MS_A 5000
+#define USER_INPUT_TIME_MS_B 9000
+#define USER_INPUT_TIMEOVERFLOW 15000
 #define EVT_GPIO_PRESSED 0x01
 /* USER CODE END PM */
 
@@ -52,7 +57,7 @@ const osThreadAttr_t config_task_attributes = {
     .priority = (osPriority_t)osPriorityNormal,
     .stack_size = 128 * 4};
 /* USER CODE BEGIN PV */
-
+static uint8_t block_gpio_interrupt = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -275,9 +280,10 @@ int _write(int file, char *ptr, int len)
 
 void HAL_GPIO_EXTI_Falling_Callback(uint16_t GPIO_Pin)
 {
-  if (GPIO_Pin == CFG_SW_Pin)
+  if (GPIO_Pin == CFG_SW_Pin && block_gpio_interrupt == 0)
   {
-    osThreadFlagsSet(config_task_handle, 0x01);
+    block_gpio_interrupt = 1;
+    osThreadFlagsSet(config_task_handle, EVT_GPIO_PRESSED);
   }
   else
   {
@@ -305,7 +311,42 @@ void config_task_handler(void *argument)
     flags = osThreadFlagsWait(EVT_GPIO_PRESSED, osFlagsWaitAny, osWaitForever);
     if (flags & EVT_GPIO_PRESSED)
     {
-      printf("Button Pressed!\r\n");
+      osDelay(MS2TICKS(200)); // debounce delay
+      uint32_t triggerred_time = MILLIS();
+      while (GPIO_PIN_RESET == HAL_GPIO_ReadPin(CFG_SW_GPIO_Port, CFG_SW_Pin))
+      {
+        osDelay(MS2TICKS(250));
+        if (MILLIS() - triggerred_time > USER_INPUT_TIMEOVERFLOW)
+        {
+          printf("Input time overflow\r\n");
+          break;
+        }
+      }
+
+      // check if the button was released within expected time
+      uint32_t input_time = MILLIS() - triggerred_time;
+
+      printf("Button was pressed for %lu ms\r\n", input_time);
+
+      if (input_time < USER_INPUT_TIMEOUT_MS)
+      {
+        printf("USER_INPUT_TIMEOUT_MS\r\n");
+      }
+      else if (input_time < USER_INPUT_TIME_MS_A)
+      {
+        printf("USER_INPUT_TIME_MS_A\r\n");
+      }
+      else if (input_time < USER_INPUT_TIME_MS_B)
+      {
+        printf("USER_INPUT_TIME_MS_B\r\n");
+      }
+      else if (input_time < USER_INPUT_TIMEOVERFLOW)
+      {
+        printf("USER_INPUT_TIMEOVERFLOW\r\n");
+      }
+
+      // clear the flag once processed
+      block_gpio_interrupt = 0;
     }
   }
   /* USER CODE END 5 */
