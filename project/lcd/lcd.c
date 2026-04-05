@@ -44,6 +44,7 @@ uint8_t lcd_init(void)
     lcd_presence = 1;
 
     lcd_send_command(0x38); // Set to 8 bit, 2 row configuration
+    lcd_clear();
 
     printf("LCD: Initialization complete\r\n");
 
