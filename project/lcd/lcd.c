@@ -27,7 +27,6 @@ static uint8_t lcd_presence = 0;
 
 // LCD Local functions declarations
 static uint8_t lcd_scan();
-static uint8_t lcd_kick_start(void);
 static uint8_t lcd_compose_byte(uint8_t rs, uint8_t rw, uint8_t en, uint8_t bl, uint8_t byte_data, uint8_t nibble_type);
 static uint8_t lcd_send_command(uint8_t cmd);
 
@@ -40,10 +39,7 @@ uint8_t lcd_init(void)
 
     lcd_presence = 1;
 
-    if (lcd_kick_start() != 0)
-    {
-        return 0xFF;
-    }
+    lcd_send_command(0x38); // Set to 8 bit, 2 row configuration
 
     printf("LCD: Initialization complete\r\n");
 
@@ -66,32 +62,6 @@ uint8_t lcd_scan()
 #endif
 
     return 0xff; // Return 0xFF if LCD is not found
-}
-
-uint8_t lcd_kick_start(void)
-{
-    // Pre-calculated byte arrays for the wakeup nibbles (EN=1, then EN=0)
-    uint8_t init_0x03[2] = {0x3C, 0x38};
-    uint8_t init_0x02[2] = {0x2C, 0x28};
-
-    // 1. Wait for LCD power to physically stabilize (>40ms)
-    HAL_Delay(50);
-
-    // 2. The HD44780 Wakeup Sequence (Three knocks of 0x03)
-    HAL_I2C_Master_Transmit(&hi2c1, I2C_ADDR, init_0x03, 2, LCD_I2C_TIMEOUT_MS);
-    HAL_Delay(5); // > 4.1ms delay
-
-    HAL_I2C_Master_Transmit(&hi2c1, I2C_ADDR, init_0x03, 2, LCD_I2C_TIMEOUT_MS);
-    HAL_Delay(1); // > 100us delay
-
-    HAL_I2C_Master_Transmit(&hi2c1, I2C_ADDR, init_0x03, 2, LCD_I2C_TIMEOUT_MS);
-    HAL_Delay(1); // > 10us delay
-
-    // 3. Force into 4-bit interface mode (One knock of 0x02)
-    HAL_I2C_Master_Transmit(&hi2c1, I2C_ADDR, init_0x02, 2, LCD_I2C_TIMEOUT_MS);
-    HAL_Delay(1);
-
-    return 0;
 }
 
 /**
