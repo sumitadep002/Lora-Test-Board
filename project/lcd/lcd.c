@@ -16,6 +16,9 @@
 // Externally defined I2C handle from main.c
 extern I2C_HandleTypeDef hi2c1;
 
+// Slave Address
+#define I2C_ADDR (LCD_ADDRESS << 1)
+
 // LCD Commands
 #define LCD_CMD_CLEAR_DISPLAY 0x01
 
@@ -50,7 +53,7 @@ uint8_t lcd_init(void)
 uint8_t lcd_scan()
 {
     // Check if device responds at this address
-    if (HAL_I2C_IsDeviceReady(&hi2c1, LCD_ADDRESS << 1, 1, LCD_I2C_TIMEOUT_MS) == HAL_OK)
+    if (HAL_I2C_IsDeviceReady(&hi2c1, I2C_ADDR, 1, LCD_I2C_TIMEOUT_MS) == HAL_OK)
     {
 #if defined(LCD_LOG_ENABLE)
         printf("LCD: Detected at 0x%02X\r\n", LCD_ADDRESS);
@@ -75,17 +78,17 @@ uint8_t lcd_kick_start(void)
     HAL_Delay(50);
 
     // 2. The HD44780 Wakeup Sequence (Three knocks of 0x03)
-    HAL_I2C_Master_Transmit(&hi2c1, LCD_ADDRESS << 1, init_0x03, 2, LCD_I2C_TIMEOUT_MS);
+    HAL_I2C_Master_Transmit(&hi2c1, I2C_ADDR, init_0x03, 2, LCD_I2C_TIMEOUT_MS);
     HAL_Delay(5); // > 4.1ms delay
 
-    HAL_I2C_Master_Transmit(&hi2c1, LCD_ADDRESS << 1, init_0x03, 2, LCD_I2C_TIMEOUT_MS);
+    HAL_I2C_Master_Transmit(&hi2c1, I2C_ADDR, init_0x03, 2, LCD_I2C_TIMEOUT_MS);
     HAL_Delay(1); // > 100us delay
 
-    HAL_I2C_Master_Transmit(&hi2c1, LCD_ADDRESS << 1, init_0x03, 2, LCD_I2C_TIMEOUT_MS);
+    HAL_I2C_Master_Transmit(&hi2c1, I2C_ADDR, init_0x03, 2, LCD_I2C_TIMEOUT_MS);
     HAL_Delay(1); // > 10us delay
 
     // 3. Force into 4-bit interface mode (One knock of 0x02)
-    HAL_I2C_Master_Transmit(&hi2c1, LCD_ADDRESS << 1, init_0x02, 2, LCD_I2C_TIMEOUT_MS);
+    HAL_I2C_Master_Transmit(&hi2c1, I2C_ADDR, init_0x02, 2, LCD_I2C_TIMEOUT_MS);
     HAL_Delay(1);
 
     return 0;
@@ -147,7 +150,7 @@ uint8_t lcd_send_command(uint8_t cmd)
 
     i2c_byte[3] = lcd_compose_byte(0, 0, 0, 1, cmd, 1); // EN=0, latch
 
-    if (HAL_I2C_Master_Transmit(&hi2c1, LCD_ADDRESS << 1, i2c_byte, 4, LCD_I2C_TIMEOUT_MS) != HAL_OK)
+    if (HAL_I2C_Master_Transmit(&hi2c1, I2C_ADDR, i2c_byte, 4, LCD_I2C_TIMEOUT_MS) != HAL_OK)
     {
         return 0xFF; // Return error if transmission fails
     }
