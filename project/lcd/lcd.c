@@ -19,6 +19,10 @@ extern I2C_HandleTypeDef hi2c1;
 // Slave Address
 #define I2C_ADDR (LCD_ADDRESS << 1)
 
+// --- LCD Control Bytes ---
+#define LCD_CTRL_CMD 0x00  // Control byte for sending a command
+#define LCD_CTRL_DATA 0x40 // Control byte for sending text data
+
 // LCD Commands
 #define LCD_CMD_CLEAR_DISPLAY 0x01
 
@@ -109,8 +113,28 @@ uint8_t lcd_clear(void)
 uint8_t lcd_send_command(uint8_t cmd)
 {
     uint8_t buffer[2];
-    buffer[0] = 0x00; // Control byte: RS = 0
-    buffer[1] = cmd;  // The actual command
+    buffer[0] = LCD_CTRL_CMD; // Control byte: RS = 0
+    buffer[1] = cmd;          // The actual command
+
+    if (HAL_I2C_Master_Transmit(&hi2c1, I2C_ADDR, buffer, sizeof(buffer), LCD_I2C_TIMEOUT_MS) != HAL_OK)
+    {
+        return 0xFF;
+    }
+    return 0;
+}
+
+/**
+ * @brief Send a data byte to the LCD
+ *
+ * @param data 8-bit data to send
+ *
+ * Sends the high nibble first, then low nibble, each with an EN pulse to latch.
+ */
+uint8_t lcd_send_data(uint8_t data)
+{
+    uint8_t buffer[2];
+    buffer[0] = LCD_CTRL_DATA; // Control byte: RS =
+    buffer[1] = data;          // The actual Data
 
     if (HAL_I2C_Master_Transmit(&hi2c1, I2C_ADDR, buffer, sizeof(buffer), LCD_I2C_TIMEOUT_MS) != HAL_OK)
     {
