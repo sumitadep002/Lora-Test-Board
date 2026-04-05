@@ -57,6 +57,8 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define GATED_5V_Pin GPIO_PIN_4
+#define GATED_5V_GPIO_Port GPIOA
 #define CFG_SW_Pin GPIO_PIN_8
 #define CFG_SW_GPIO_Port GPIOA
 #define CFG_SW_EXTI_IRQn EXTI4_15_IRQn
