@@ -226,3 +226,40 @@ uint8_t lcd_msg_left(const char *str1, const char *str2)
 
     return 0;
 }
+
+uint8_t lcd_msg_middle(const char *str1, const char *str2)
+{
+    if (str1 == NULL || str2 == NULL || strlen(str1) > 16 || strlen(str2) > 16)
+    {
+        return 0xff;
+    }
+
+    if (lcd_clear() != 0)
+    {
+        return 0xfe;
+    }
+
+    // Move to Row 0, Column 2 (Center the text a bit)
+    if (lcd_send_command(LCD_ROW_0 + (16 - strlen(str1)) / 2) != 0)
+    {
+        return 0xfd;
+    }
+
+    if (lcd_print_string(str1) != 0)
+    {
+        return 0xfc;
+    }
+
+    // Move to Row 1, Column 0
+    if (lcd_send_command(LCD_ROW_1 + (16 - strlen(str2)) / 2) != 0)
+    {
+        return 0xfb;
+    }
+
+    if (lcd_print_string(str2) != 0)
+    {
+        return 0xfa;
+    }
+
+    return 0;
+}

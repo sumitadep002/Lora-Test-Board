@@ -113,6 +113,8 @@ int main(void)
   /* USER CODE BEGIN 2 */
   HAL_GPIO_WritePin(GATED_5V_GPIO_Port, GATED_5V_Pin, GPIO_PIN_RESET); // This will enable Gated 5V power to LCD and other peripherals. Keep it off until we are ready to use them
   lcd_init();
+  lcd_msg_left("Sumit", "Adep");
+  lcd_msg_middle("0123456789ABCDEF", "WORKS");
   /* USER CODE END 2 */
 
   /* Init scheduler */
