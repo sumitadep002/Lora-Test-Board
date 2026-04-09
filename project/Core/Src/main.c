@@ -24,6 +24,7 @@
 /* USER CODE BEGIN Includes */
 #include <stdint.h>
 #include <stdio.h>
+#include "lcd.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -53,9 +54,9 @@ I2C_HandleTypeDef hi2c1;
 UART_HandleTypeDef huart1;
 
 /* Definitions for defaultTask */
-osThreadId_t config_task_handle;
-const osThreadAttr_t config_task_attributes = {
-    .name = "config_task",
+osThreadId_t defaultTaskHandle;
+const osThreadAttr_t defaultTask_attributes = {
+    .name = "defaultTask",
     .priority = (osPriority_t)osPriorityNormal,
     .stack_size = 128 * 4};
 /* USER CODE BEGIN PV */
@@ -67,7 +68,7 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_I2C1_Init(void);
-void config_task_handler(void *argument);
+void StartDefaultTask(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -110,7 +111,10 @@ int main(void)
   MX_USART1_UART_Init();
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
-
+  HAL_GPIO_WritePin(GATED_5V_GPIO_Port, GATED_5V_Pin, GPIO_PIN_RESET); // This will enable Gated 5V power to LCD and other peripherals. Keep it off until we are ready to use them
+  lcd_init();
+  lcd_msg_left("Sumit", "Adep");
+  lcd_msg_middle("0123456789ABCDEF", "WORKS");
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -134,7 +138,7 @@ int main(void)
 
   /* Create the thread(s) */
   /* creation of defaultTask */
-  config_task_handle = osThreadNew(config_task_handler, NULL, &config_task_attributes);
+  defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -350,7 +354,6 @@ void HAL_GPIO_EXTI_Falling_Callback(uint16_t GPIO_Pin)
   if (GPIO_Pin == CFG_SW_Pin && block_gpio_interrupt == 0)
   {
     block_gpio_interrupt = 1;
-    osThreadFlagsSet(config_task_handle, EVT_GPIO_PRESSED);
   }
   else
   {
@@ -367,68 +370,13 @@ void HAL_GPIO_EXTI_Falling_Callback(uint16_t GPIO_Pin)
  * @retval None
  */
 /* USER CODE END Header_StartDefaultTask */
-void config_task_handler(void *argument)
+__weak void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
-  uint32_t flags;
-  printf("config-user-started\r\n");
-  HAL_GPIO_WritePin(GATED_5V_GPIO_Port, GATED_5V_Pin, GPIO_PIN_RESET);
-  HAL_Delay(3000);
+
   /* Infinite loop */
   for (;;)
   {
-    flags = osThreadFlagsWait(EVT_GPIO_PRESSED, osFlagsWaitAny, osWaitForever);
-    if (flags & EVT_GPIO_PRESSED)
-    {
-      osDelay(MS2TICKS(200)); // debounce delay
-      uint32_t triggerred_time = MILLIS();
-      while (GPIO_PIN_RESET == HAL_GPIO_ReadPin(CFG_SW_GPIO_Port, CFG_SW_Pin))
-      {
-        osDelay(MS2TICKS(250));
-        if (MILLIS() - triggerred_time > USER_INPUT_TIMEOVERFLOW)
-        {
-          printf("Input time overflow\r\n");
-          break;
-        }
-      }
-
-      // check if the button was released within expected time
-      uint32_t input_time = MILLIS() - triggerred_time;
-      uint8_t data = 0;
-
-      printf("Button was pressed for %lu ms\r\n", input_time);
-
-      if (input_time < USER_INPUT_TIMEOUT_MS)
-      {
-
-        printf("Scanning I2C bus...\r\n");
-
-        for (uint8_t add = 1; add < 128; add++)
-        {
-          if (HAL_I2C_IsDeviceReady(&hi2c1, (add << 1), 1, 10) == HAL_OK)
-          {
-            printf("Device found at 0x%02X\r\n", add);
-          }
-        }
-
-        printf("Scan complete\r\n");
-      }
-      else if (input_time < USER_INPUT_TIME_MS_A)
-      {
-        printf("USER_INPUT_TIME_MS_A\r\n");
-      }
-      else if (input_time < USER_INPUT_TIME_MS_B)
-      {
-        printf("USER_INPUT_TIME_MS_B\r\n");
-      }
-      else if (input_time < USER_INPUT_TIMEOVERFLOW)
-      {
-        printf("USER_INPUT_TIMEOVERFLOW\r\n");
-      }
-
-      // clear the flag once processed
-      block_gpio_interrupt = 0;
-    }
   }
   /* USER CODE END 5 */
 }
