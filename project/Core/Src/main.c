@@ -24,7 +24,8 @@
 /* USER CODE BEGIN Includes */
 #include <stdint.h>
 #include <stdio.h>
-#include "lcd.h"
+
+#include "../../cfg_btn/cfg_btn.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -39,13 +40,7 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-#define MS2TICKS(ms) ((ms * osKernelGetTickFreq()) / 1000)
-#define MILLIS() osKernelGetTickCount()
-#define USER_INPUT_TIMEOUT_MS 1000
-#define USER_INPUT_TIME_MS_A 5000
-#define USER_INPUT_TIME_MS_B 9000
-#define USER_INPUT_TIMEOVERFLOW 15000
-#define EVT_GPIO_PRESSED 0x01
+
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -53,14 +48,9 @@ I2C_HandleTypeDef hi2c1;
 
 UART_HandleTypeDef huart1;
 
-/* Definitions for defaultTask */
-osThreadId_t defaultTaskHandle;
-const osThreadAttr_t defaultTask_attributes = {
-    .name = "defaultTask",
-    .priority = (osPriority_t)osPriorityNormal,
-    .stack_size = 128 * 4};
+
 /* USER CODE BEGIN PV */
-static uint8_t block_gpio_interrupt = 0;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -68,10 +58,9 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_I2C1_Init(void);
-void StartDefaultTask(void *argument);
 
 /* USER CODE BEGIN PFP */
-
+void user_btn_callback(uint32_t timeout_ms);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -112,9 +101,6 @@ int main(void)
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
   HAL_GPIO_WritePin(GATED_5V_GPIO_Port, GATED_5V_Pin, GPIO_PIN_RESET); // This will enable Gated 5V power to LCD and other peripherals. Keep it off until we are ready to use them
-  lcd_init();
-  lcd_msg_left("Sumit", "Adep");
-  lcd_msg_middle("0123456789ABCDEF", "WORKS");
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -137,11 +123,9 @@ int main(void)
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-  /* creation of defaultTask */
-  defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
-  /* add threads, ... */
+  cfg_btn_init(user_btn_callback);
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */
@@ -351,35 +335,21 @@ int _write(int file, char *ptr, int len)
 
 void HAL_GPIO_EXTI_Falling_Callback(uint16_t GPIO_Pin)
 {
-  if (GPIO_Pin == CFG_SW_Pin && block_gpio_interrupt == 0)
+  if (GPIO_Pin == CFG_SW_Pin)
   {
-    block_gpio_interrupt = 1;
+    cfg_btn_handle_interrupt();
   }
-  else
-  {
-    __NOP();
-  }
+}
+
+void user_btn_callback(uint32_t timeout_ms)
+{
+  printf("Button callback triggered: %lu ms\r\n", timeout_ms);
+  /* Process depending on timeout_ms here */
 }
 
 /* USER CODE END 4 */
 
-/* USER CODE BEGIN Header_StartDefaultTask */
-/**
- * @brief  Function implementing the defaultTask thread.
- * @param  argument: Not used
- * @retval None
- */
-/* USER CODE END Header_StartDefaultTask */
-__weak void StartDefaultTask(void *argument)
-{
-  /* USER CODE BEGIN 5 */
 
-  /* Infinite loop */
-  for (;;)
-  {
-  }
-  /* USER CODE END 5 */
-}
 
 /**
  * @brief  Period elapsed callback in non blocking mode
