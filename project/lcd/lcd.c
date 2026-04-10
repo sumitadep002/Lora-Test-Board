@@ -12,6 +12,15 @@
 // Project header files
 #include "main.h"
 #include "lcd.h"
+#include "cmsis_os.h"
+
+// FreeRTOS Handles
+static osMessageQueueId_t lcd_msg_queue = NULL;
+static osThreadId_t lcd_task_handle = NULL;
+
+// LCD Task Prototypes
+static void lcd_task(void *argument);
+static uint8_t lcd_hw_init(void);
 
 // Externally defined I2C handle from main.c
 extern I2C_HandleTypeDef hi2c1;
@@ -54,15 +63,15 @@ static uint8_t lcd_send_command(uint8_t cmd);
 static uint8_t lcd_send_data(uint8_t data);
 uint8_t lcd_print_string(const char *str);
 
-uint8_t lcd_init(void)
+static uint8_t lcd_hw_init(void)
 {
     if (lcd_scan() != 0)
     {
-        LCD_LOG_ERR("Initialization failed - device not found\r\n");
+        LCD_LOG_ERR("Hardware initialization failed - device not found\r\n");
         return 0xFF;
     }
 
-    HAL_Delay(10);
+    osDelay(10);
 
     lcd_presence = 1;
 
@@ -71,6 +80,73 @@ uint8_t lcd_init(void)
     lcd_send_command(LCD_CMD_DISP_ON);    // Turn screen on
     lcd_send_command(LCD_CMD_ENTRY_MODE); // Set text to print left-to-right
     lcd_clear();                          // Clear memory
+
+    return 0;
+}
+
+uint8_t lcd_init(void)
+{
+    // 1. Create LCD Message Queue
+    lcd_msg_queue = osMessageQueueNew(5, sizeof(lcd_msg_t), NULL);
+    if (lcd_msg_queue == NULL)
+    {
+        LCD_LOG_ERR("Failed to create LCD message queue\r\n");
+        return 0xEE;
+    }
+
+    // 2. Create LCD Manager Task (Consumer)
+    const osThreadAttr_t lcd_task_attributes = {
+        .name = "lcdTask",
+        .stack_size = 256 * 4,
+        .priority = (osPriority_t)osPriorityNormal,
+    };
+    lcd_task_handle = osThreadNew(lcd_task, NULL, &lcd_task_attributes);
+    if (lcd_task_handle == NULL)
+    {
+        LCD_LOG_ERR("Failed to create LCD task\r\n");
+        return 0xED;
+    }
+
+    return 0;
+}
+
+/**
+ * @brief Consumer task that waits for messages and updates the LCD
+ */
+static void lcd_task(void *argument)
+{
+    lcd_msg_t msg;
+
+    // Initialize hardware
+    lcd_hw_init();
+
+    for (;;)
+    {
+        if (osMessageQueueGet(lcd_msg_queue, &msg, NULL, osWaitForever) == osOK)
+        {
+            lcd_msg_middle(msg.str1, msg.str2);
+        }
+    }
+}
+
+
+uint8_t lcd_enqueue_msg(const char *str1, const char *str2)
+{
+    if (lcd_msg_queue == NULL)
+    {
+        return 0xEF;
+    }
+
+    lcd_msg_t msg;
+    memset(&msg, 0, sizeof(lcd_msg_t));
+
+    if (str1) strncpy(msg.str1, str1, 16);
+    if (str2) strncpy(msg.str2, str2, 16);
+
+    if (osMessageQueuePut(lcd_msg_queue, &msg, 0, 0) != osOK)
+    {
+        return 0xEB; // Queue full or error
+    }
 
     return 0;
 }
@@ -113,7 +189,7 @@ uint8_t lcd_clear(void)
 {
     uint8_t status = lcd_send_command(LCD_CMD_CLEAR);
 
-    HAL_Delay(2); // This shall not be removed
+    osDelay(2); // This shall not be removed
 
     return status;
 }

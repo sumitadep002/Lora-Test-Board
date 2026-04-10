@@ -26,6 +26,7 @@
 #include <stdio.h>
 
 #include "../../cfg_btn/cfg_btn.h"
+#include "../../lcd/lcd.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -126,6 +127,7 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_THREADS */
   cfg_btn_init(user_btn_callback);
+  lcd_init();
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */
@@ -343,8 +345,23 @@ void HAL_GPIO_EXTI_Falling_Callback(uint16_t GPIO_Pin)
 
 void user_btn_callback(uint32_t timeout_ms)
 {
+  char str1[17];
+  char str2[17];
+
   printf("Button callback triggered: %lu ms\r\n", timeout_ms);
-  /* Process depending on timeout_ms here */
+
+  if (timeout_ms < 1000)
+  {
+    snprintf(str1, sizeof(str1), "Short Press");
+  }
+  else
+  {
+    snprintf(str1, sizeof(str1), "Long Press");
+  }
+
+  snprintf(str2, sizeof(str2), "Time: %lu ms", timeout_ms);
+
+  lcd_enqueue_msg(str1, str2);
 }
 
 /* USER CODE END 4 */
