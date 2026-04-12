@@ -132,6 +132,17 @@ sx126x_hal_status_t sx126x_hal_reset( const void* context );
  */
 sx126x_hal_status_t sx126x_hal_wakeup( const void* context );
 
+/**
+ * Initialize the radio HAL
+ *
+ * @remark Shall be implemented by the user
+ *
+ * @param [in] context Radio implementation parameters
+ *
+ * @returns Operation status
+ */
+sx126x_hal_status_t sx126x_hal_init( const void* context );
+
 #ifdef __cplusplus
 }
 #endif

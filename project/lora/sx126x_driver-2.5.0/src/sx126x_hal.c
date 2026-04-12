@@ -79,6 +79,23 @@ sx126x_hal_status_t sx126x_hal_wakeup( const void* context )
     return SX126X_HAL_STATUS_OK;
 }
 
+sx126x_hal_status_t sx126x_hal_init( const void* context )
+{
+    /* Ensure NSS is High (Not selected) */
+    HAL_GPIO_WritePin( LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_SET );
+
+    /* Perform Hardware Reset */
+    sx126x_hal_reset( context );
+
+    /* Wait for modem to become ready */
+    if( sx126x_hal_bsy( ) == 0 )
+    {
+        return SX126X_HAL_STATUS_ERROR;
+    }
+
+    return SX126X_HAL_STATUS_OK;
+}
+
 /* --- EOF ------------------------------------------------------------------ */
 
 /*
