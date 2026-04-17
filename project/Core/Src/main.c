@@ -27,7 +27,9 @@
 
 #include "../../cfg_btn/cfg_btn.h"
 #include "../../lcd/lcd.h"
+#include "../../lora/lora.h"
 /* USER CODE END Includes */
+
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
@@ -63,7 +65,9 @@ static void MX_I2C1_Init(void);
 static void MX_SPI1_Init(void);
 /* USER CODE BEGIN PFP */
 void user_btn_callback(uint32_t timeout_ms);
+void user_lora_rx_callback(uint8_t *data, uint16_t len, int16_t rssi, int8_t snr);
 /* USER CODE END PFP */
+
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
@@ -128,7 +132,10 @@ int main(void)
   /* USER CODE BEGIN RTOS_THREADS */
   cfg_btn_init(user_btn_callback);
   lcd_init();
+  lora_init(user_lora_rx_callback);
   /* USER CODE END RTOS_THREADS */
+
+
 
   /* USER CODE BEGIN RTOS_EVENTS */
   /* add events, ... */
@@ -433,7 +440,22 @@ void user_btn_callback(uint32_t timeout_ms)
   lcd_enqueue_msg(str1, str2);
 }
 
+void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin)
+{
+  if (GPIO_Pin == LORA_INT_Pin)
+  {
+    lora_handle_interrupt();
+  }
+}
+
+void user_lora_rx_callback(uint8_t *data, uint16_t len, int16_t rssi, int8_t snr)
+{
+  // Handle LoRa hardware RX data
+  printf("LoRa Received: %d bytes\r\n", len);
+}
+
 /* USER CODE END 4 */
+
 
 /**
   * @brief  Period elapsed callback in non blocking mode

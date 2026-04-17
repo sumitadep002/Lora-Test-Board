@@ -34,8 +34,17 @@ sx126x_hal_status_t sx126x_hal_write( const void* context, const uint8_t* comman
 
     HAL_GPIO_WritePin( LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_RESET );
 
-    HAL_SPI_Transmit( &hspi1, ( uint8_t* ) command, command_length, LORA_SPI_TIMEOUT_TICKS );
-    HAL_SPI_Transmit( &hspi1, ( uint8_t* ) data, data_length, LORA_SPI_TIMEOUT_TICKS );
+    if (HAL_SPI_Transmit(&hspi1, (uint8_t*)command, command_length, LORA_SPI_TIMEOUT_TICKS) != HAL_OK)
+    {
+        HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_SET);
+        return SX126X_HAL_STATUS_ERROR;
+    }
+    if (HAL_SPI_Transmit(&hspi1, (uint8_t*)data, data_length, LORA_SPI_TIMEOUT_TICKS) != HAL_OK)
+    {
+        HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_SET);
+        return SX126X_HAL_STATUS_ERROR;
+    }
+
 
     HAL_GPIO_WritePin( LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_SET );
 
@@ -51,8 +60,17 @@ sx126x_hal_status_t sx126x_hal_read( const void* context, const uint8_t* command
 
     HAL_GPIO_WritePin( LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_RESET );
 
-    HAL_SPI_Transmit( &hspi1, ( uint8_t* ) command, command_length, LORA_SPI_TIMEOUT_TICKS );
-    HAL_SPI_Receive( &hspi1, data, data_length, LORA_SPI_TIMEOUT_TICKS );
+    if (HAL_SPI_Transmit(&hspi1, (uint8_t*)command, command_length, LORA_SPI_TIMEOUT_TICKS) != HAL_OK)
+    {
+        HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_SET);
+        return SX126X_HAL_STATUS_ERROR;
+    }
+    if (HAL_SPI_Receive(&hspi1, data, data_length, LORA_SPI_TIMEOUT_TICKS) != HAL_OK)
+    {
+        HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_SET);
+        return SX126X_HAL_STATUS_ERROR;
+    }
+
 
     HAL_GPIO_WritePin( LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_SET );
 

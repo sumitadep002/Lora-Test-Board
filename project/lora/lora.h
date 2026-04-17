@@ -1,13 +1,58 @@
-/*
- * lora.h
- *
- *  Created on: Apr 12, 2026
- *      Author: sumit
+/**
+ * @file      lora.h
+ * @brief     LoRa driver high-level interface
  */
 
-#ifndef LORA_H_
-#define LORA_H_
+#ifndef LORA_H
+#define LORA_H
+
+#include <stdint.h>
+#include <stdbool.h>
+#include "sx126x.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/* --- PUBLIC MACROS ----------------------------------------------------------- */
+
+#define LORA_LOG_ENABLE // Enable logging for LoRa
+
+#if defined(LORA_LOG_ENABLE)
+#define LORA_LOG_ERR(...)   printf("LORA [ERR]: " __VA_ARGS__)
+#define LORA_LOG_INFO(...)  printf("LORA [INFO]: " __VA_ARGS__)
+#define LORA_LOG_FAIL(...)  printf("LORA [FAIL]: " __VA_ARGS__)
+#else
+#define LORA_LOG_ERR(...)
+#define LORA_LOG_INFO(...)
+#define LORA_LOG_FAIL(...)
+#endif
+
+/* --- PUBLIC TYPES ------------------------------------------------------------ */
+
+/**
+ * @brief  LoRa receive callback type
+ */
+typedef void (*lora_rx_cb_t)(uint8_t *data, uint16_t len, int16_t rssi, int8_t snr);
+
+/* --- PUBLIC FUNCTIONS PROTOTYPES --------------------------------------------- */
+
+/**
+ * @brief  Initialize LoRa modem and parameters
+ * 
+ * @param  rx_cb Receive callback function
+ * @return true if success, false otherwise
+ */
+bool lora_init(lora_rx_cb_t rx_cb);
+void lora_handle_interrupt(void);
 
 
 
-#endif /* LORA_H_ */
+
+
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // LORA_H
