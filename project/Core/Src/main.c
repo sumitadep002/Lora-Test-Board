@@ -352,7 +352,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOA, GATED_5V_Pin|LORA_NSS_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOD, LORA_RST_Pin|LORA_INT_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(LORA_RST_GPIO_Port, LORA_RST_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pins : GATED_5V_Pin LORA_NSS_Pin */
   GPIO_InitStruct.Pin = GATED_5V_Pin|LORA_NSS_Pin;
@@ -367,12 +367,18 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(CFG_SW_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : LORA_RST_Pin LORA_INT_Pin */
-  GPIO_InitStruct.Pin = LORA_RST_Pin|LORA_INT_Pin;
+  /*Configure GPIO pin : LORA_RST_Pin */
+  GPIO_InitStruct.Pin = LORA_RST_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+  HAL_GPIO_Init(LORA_RST_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : LORA_INT_Pin */
+  GPIO_InitStruct.Pin = LORA_INT_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(LORA_INT_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : LORA_BSY_Pin */
   GPIO_InitStruct.Pin = LORA_BSY_Pin;
@@ -381,6 +387,9 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(LORA_BSY_GPIO_Port, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI0_1_IRQn, 3, 0);
+  HAL_NVIC_EnableIRQ(EXTI0_1_IRQn);
+
   HAL_NVIC_SetPriority(EXTI4_15_IRQn, 3, 0);
   HAL_NVIC_EnableIRQ(EXTI4_15_IRQn);
 
