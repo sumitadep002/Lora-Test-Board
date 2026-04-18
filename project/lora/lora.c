@@ -18,6 +18,7 @@
 static lora_rx_cb_t lora_rx_callback = NULL;
 
 static osThreadId_t lora_task_handle;
+static volatile bool gf_tx_done = false;
 
 static const osThreadAttr_t lora_task_attributes = {
     .name = "lora_task",
@@ -195,6 +196,40 @@ bool lora_init(lora_rx_cb_t rx_cb)
 }
 
 
+bool lora_transmit(uint8_t *data, uint16_t length, uint32_t timeout)
+{
+    gf_tx_done = false;
+
+    sx126x_pkt_params_lora_t sx126x_pkt_params_lora = {
+        .preamble_len_in_symb = LORA_PKT_PARAMS_PREAMBLE_LEN_IN_SYMB,
+        .header_type          = LORA_PKT_PARAMS_HEADER_TYPE,
+        .pld_len_in_bytes     = (uint8_t)length,
+        .crc_is_on            = LORA_PKT_PARAMS_CRC_IS_ON,
+        .invert_iq_is_on      = LORA_PKT_PARAMS_INVERT_IQ_IS_ON
+    };
+    sx126x_set_lora_pkt_params(NULL, &sx126x_pkt_params_lora);
+
+    sx126x_set_standby(NULL, LORA_STANDBY_MODE);
+    sx126x_set_buffer_base_address(NULL, 0, 0);
+    sx126x_write_buffer(NULL, 0, data, (uint8_t)length);
+    sx126x_clear_irq_status(NULL, SX126X_IRQ_ALL);
+    sx126x_set_dio_irq_params(NULL,
+                              SX126X_IRQ_TX_DONE | SX126X_IRQ_TIMEOUT,
+                              SX126X_IRQ_TX_DONE | SX126X_IRQ_TIMEOUT,
+                              SX126X_IRQ_NONE, SX126X_IRQ_NONE);
+    sx126x_set_tx(NULL, timeout);
+
+    uint32_t temp = timeout;
+    while (!gf_tx_done && temp)
+    {
+        temp--;
+        osDelay(1);
+    }
+
+    return gf_tx_done;
+}
+
+
 
 
 static void lora_task_init(void)
@@ -227,6 +262,7 @@ static void lora_task_handler(void *argument)
                 if (irq_status & SX126X_IRQ_TX_DONE)
                 {
                     LORA_LOG_INFO("TX DONE\r\n");
+                    gf_tx_done = true;
                 }
 
                 

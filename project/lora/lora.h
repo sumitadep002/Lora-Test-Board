@@ -45,6 +45,7 @@ typedef void (*lora_rx_cb_t)(uint8_t *data, uint16_t len, int16_t rssi, int8_t s
  */
 bool lora_init(lora_rx_cb_t rx_cb);
 void lora_handle_interrupt(void);
+bool lora_transmit(uint8_t *data, uint16_t length, uint32_t timeout);
 
 
 
