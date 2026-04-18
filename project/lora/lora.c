@@ -23,7 +23,7 @@ static volatile bool gf_tx_done = false;
 static const osThreadAttr_t lora_task_attributes = {
     .name = "lora_task",
     .priority = (osPriority_t)osPriorityNormal,
-    .stack_size = 256 * 4
+    .stack_size = 128 * 4
 };
 
 /* --- PRIVATE FUNCTIONS PROTOTYPES -------------------------------------------- */
@@ -235,6 +235,14 @@ bool lora_transmit(uint8_t *data, uint16_t length, uint32_t timeout)
 static void lora_task_init(void)
 {
     lora_task_handle = osThreadNew(lora_task_handler, NULL, &lora_task_attributes);
+    if (lora_task_handle == NULL)
+    {
+        LORA_LOG_ERR("Failed to create LoRa task\r\n");
+    }
+    else
+    {
+        LORA_LOG_INFO("LoRa task created successfully\r\n");
+    }
 }
 
 
