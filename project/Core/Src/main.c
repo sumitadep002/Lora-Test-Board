@@ -491,8 +491,14 @@ void app_task(void *argument) {
     osThreadFlagsWait(APP_EVT_ACK, osFlagsWaitAny, LORA_ACK_TIMEOUT);
   }
 
+  osDelay(3000);
+
   LORA_LOG_INFO("App Task: TX Test Completed\r\n");
   lcd_enqueue_msg("TX Test", "Completed");
+
+  for (;;) {
+    osDelay(1000);
+  }
 
 #else
   LORA_LOG_INFO("App Task: RX Mode Started\r\n");
