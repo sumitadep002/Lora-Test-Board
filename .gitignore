@@ -1,0 +1,30 @@
+# STM32CubeIDE / Eclipse
+Debug/
+Release/
+*.launch
+.settings/
+*.map
+*.elf
+*.bin
+*.hex
+*.list
+*.o
+*.d
+*.su
+
+# Python / LCD Simulator
+__pycache__/
+*.pyc
+venv/
+.venv/
+env/
+.env/
+
+# OS Specific
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Temporary files
+temp.txt
