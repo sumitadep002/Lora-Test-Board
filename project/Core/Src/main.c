@@ -482,7 +482,6 @@ void app_task(void *argument) {
 
     LORA_LOG_INFO("Transmitting packet %lu/%d\r\n", tx_count,
                   LORA_TOTAL_PACKETS);
-    osDelay(50);
     lora_transmit((uint8_t *)"PING", 4, LORA_TX_TIMEOUT);
 
     /* Re-arm RX to listen for ACK */
@@ -503,7 +502,6 @@ void app_task(void *argument) {
 
     tx_count++;
     LORA_LOG_INFO("Sending ACK #%lu\r\n", tx_count);
-    osDelay(50);
     lora_transmit((uint8_t *)"ACK", 3, LORA_TX_TIMEOUT);
 
     /* Re-arm RX to listen for next PING */

@@ -72,12 +72,12 @@ extern "C"
 
 /* RX Configuration -------------------------------------------------*/
 #define LORA_RX_BOOSTED true // RX Boosted
-#define LORA_RX_TIMEOUT 5000 // RX Timeout in ms
+#define LORA_RX_TIMEOUT 10000 // RX Timeout in ms
 #define LORA_TX_TIMEOUT 5000 // TX Timeout in ms
-#define LORA_ACK_TIMEOUT 6000 // ACK Wait Timeout in ms
+#define LORA_ACK_TIMEOUT 3000 // ACK Wait Timeout in ms
 
 #define LORA_CHANNEL_CLEAR_ATTEMPTS 10 // Channel Clear Attempts
-#define LORA_TOTAL_PACKETS 10          // Total packets to transmit in test
+#define LORA_TOTAL_PACKETS 100          // Total packets to transmit in test
 
 #ifdef __cplusplus
 }
