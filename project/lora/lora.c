@@ -101,6 +101,7 @@ bool lora_init(lora_rx_cb_t rx_cb)
         LORA_LOG_ERR("SX126X-SET-DIO3-AS-TCXO failed\r\n");
         return false;
     }
+#endif
 
     /* RF Switch Configuration via DIO2 */
     modem_status = sx126x_set_dio2_as_rf_sw_ctrl(NULL, LORA_DIO2_RF_SW_CTRL);
@@ -109,7 +110,6 @@ bool lora_init(lora_rx_cb_t rx_cb)
         LORA_LOG_ERR("SX126X-SET-DIO2-AS-RF-SWITCH failed\r\n");
         return false;
     }
-#endif
     /* Packet and Frequency configuration */
     modem_status = sx126x_set_pkt_type(NULL, LORA_PKT_TYPE);
     if (modem_status != SX126X_STATUS_OK)
@@ -191,6 +191,15 @@ bool lora_init(lora_rx_cb_t rx_cb)
 
 
     LORA_LOG_INFO("LoRa Initialization successful\r\n");
+
+    /* Default pin state: RX Mode */
+    sx126x_hal_set_rf_switch_mode(NULL, SX126X_HAL_RF_SWITCH_RX);
+
+#if (LORA_BOARD_MODE == LORA_MODE_RX)
+    lora_start_rx(SX126X_RX_CONTINUOUS);
+    LORA_LOG_INFO("LoRa started in RX mode\r\n");
+#endif
+
     lora_task_init();
     return true;
 }
@@ -199,6 +208,9 @@ bool lora_init(lora_rx_cb_t rx_cb)
 bool lora_transmit(uint8_t *data, uint16_t length, uint32_t timeout)
 {
     gf_tx_done = false;
+
+    /* Enable TX path */
+    sx126x_hal_set_rf_switch_mode(NULL, SX126X_HAL_RF_SWITCH_TX);
 
     sx126x_pkt_params_lora_t sx126x_pkt_params_lora = {
         .preamble_len_in_symb = LORA_PKT_PARAMS_PREAMBLE_LEN_IN_SYMB,
@@ -226,7 +238,27 @@ bool lora_transmit(uint8_t *data, uint16_t length, uint32_t timeout)
         osDelay(1);
     }
 
+    /* Return to RX path */
+    sx126x_hal_set_rf_switch_mode(NULL, SX126X_HAL_RF_SWITCH_RX);
+
     return gf_tx_done;
+}
+
+
+void lora_start_rx(uint32_t timeout)
+{
+    /* Enable RX path */
+    sx126x_hal_set_rf_switch_mode(NULL, SX126X_HAL_RF_SWITCH_RX);
+
+    sx126x_set_standby(NULL, LORA_STANDBY_MODE);
+    sx126x_set_buffer_base_address(NULL, 0, 0);
+    sx126x_clear_irq_status(NULL, SX126X_IRQ_ALL);
+    
+    sx126x_set_dio_irq_params(NULL,
+                              SX126X_IRQ_RX_DONE | SX126X_IRQ_TIMEOUT | SX126X_IRQ_CRC_ERROR,
+                              SX126X_IRQ_RX_DONE | SX126X_IRQ_TIMEOUT | SX126X_IRQ_CRC_ERROR,
+                              SX126X_IRQ_NONE, SX126X_IRQ_NONE);
+    sx126x_set_rx(NULL, timeout);
 }
 
 
@@ -276,13 +308,47 @@ static void lora_task_handler(void *argument)
                 
                 if (irq_status & SX126X_IRQ_RX_DONE)
                 {
-                    // Handle RX logic here
-                    LORA_LOG_INFO("RX DONE\r\n");
+                    sx126x_set_standby(NULL, LORA_STANDBY_MODE);
+
+                    sx126x_rx_buffer_status_t rx_buffer_status;
+                    sx126x_get_rx_buffer_status(NULL, &rx_buffer_status);
+                    
+                    uint8_t rx_data[256];
+                    sx126x_read_buffer(NULL, rx_buffer_status.buffer_start_pointer, rx_data, rx_buffer_status.pld_len_in_bytes);
+                    
+                    sx126x_pkt_status_lora_t pkt_status;
+                    sx126x_get_lora_pkt_status(NULL, &pkt_status);
+                    
+                    LORA_LOG_INFO("RX DONE: %d bytes, RSSI: %d, SNR: %d\r\n", 
+                                 rx_buffer_status.pld_len_in_bytes, 
+                                 pkt_status.rssi_pkt_in_dbm, 
+                                 pkt_status.snr_pkt_in_db);
+
+                    if (lora_rx_callback != NULL)
+                    {
+                        lora_rx_callback(rx_data, rx_buffer_status.pld_len_in_bytes, 
+                                         pkt_status.rssi_pkt_in_dbm, pkt_status.snr_pkt_in_db);
+                    }
+                    
+                    // Re-start RX if in continuous mode
+                    if (LORA_BOARD_MODE == LORA_MODE_RX)
+                    {
+                        lora_start_rx(SX126X_RX_CONTINUOUS);
+                    }
                 }
                 
                 if (irq_status & SX126X_IRQ_TIMEOUT)
                 {
                     LORA_LOG_ERR("IRQ TIMEOUT\r\n");
+                }
+
+                if (irq_status & SX126X_IRQ_CRC_ERROR)
+                {
+                    LORA_LOG_ERR("RX CRC ERROR\r\n");
+                    if (LORA_BOARD_MODE == LORA_MODE_RX)
+                    {
+                        lora_start_rx(SX126X_RX_CONTINUOUS);
+                    }
                 }
             }
         }
