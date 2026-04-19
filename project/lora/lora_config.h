@@ -75,6 +75,7 @@ extern "C"
 #define LORA_RX_TIMEOUT 5000 // RX Timeout in ms
 
 #define LORA_CHANNEL_CLEAR_ATTEMPTS 10 // Channel Clear Attempts
+#define LORA_TOTAL_PACKETS 10          // Total packets to transmit in test
 
 #ifdef __cplusplus
 }
