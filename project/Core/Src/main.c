@@ -40,6 +40,7 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define APP_EVT_ACK (1 << 0)
+#define APP_EVT_SEND_ACK (1 << 1)
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -430,7 +431,7 @@ void user_btn_callback(uint32_t timeout_ms) {
 
   snprintf(str2, sizeof(str2), "Time: %lu ms", timeout_ms);
 
-  lcd_enqueue_msg(str1, str2);
+  // lcd_enqueue_msg(str1, str2);
 }
 
 void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin) {
@@ -449,14 +450,10 @@ void user_lora_rx_callback(uint8_t *data, uint16_t len, int16_t rssi,
                 rssi, snr);
 
 #if (LORA_BOARD_MODE == LORA_MODE_RX)
-  /* RX Board sends ACK */
-  tx_count++;
-  LORA_LOG_INFO("Sending ACK #%lu\r\n", tx_count);
-  osDelay(50);
-  lora_transmit((uint8_t *)"ACK", 3, LORA_TX_TIMEOUT);
-
-  snprintf(str1, sizeof(str1), "RX Pkt: %lu", rx_count);
-  snprintf(str2, sizeof(str2), "TX Ack: %lu", tx_count);
+  /* Signal app_task to send ACK (avoids deadlock in lora_task) */
+  if (app_task_handle != NULL) {
+    osThreadFlagsSet(app_task_handle, APP_EVT_SEND_ACK);
+  }
 #else
   /* TX Board received ACK */
   if (app_task_handle != NULL) {
@@ -466,7 +463,7 @@ void user_lora_rx_callback(uint8_t *data, uint16_t len, int16_t rssi,
   snprintf(str2, sizeof(str2), "RX Ack: %lu", rx_count);
 #endif
 
-  lcd_enqueue_msg(str1, str2);
+  // lcd_enqueue_msg(str1, str2);
 }
 
 void app_task(void *argument) {
@@ -481,7 +478,7 @@ void app_task(void *argument) {
     tx_count++;
     snprintf(str1, sizeof(str1), "TX Pkt: %lu", tx_count);
     snprintf(str2, sizeof(str2), "RX Ack: %lu", rx_count);
-    lcd_enqueue_msg(str1, str2);
+    // lcd_enqueue_msg(str1, str2);
 
     LORA_LOG_INFO("Transmitting packet %lu/%d\r\n", tx_count,
                   LORA_TOTAL_PACKETS);
@@ -496,13 +493,22 @@ void app_task(void *argument) {
   }
 
   LORA_LOG_INFO("App Task: TX Test Completed\r\n");
-  lcd_enqueue_msg("TX Test", "Completed");
+  // lcd_enqueue_msg("TX Test", "Completed");
 
 #else
   LORA_LOG_INFO("App Task: RX Mode Started\r\n");
-  /* RX Board just waits for interrupts, counters are updated in callback */
   for (;;) {
-    osDelay(1000);
+    /* Wait for signal from RX callback to send ACK */
+    osThreadFlagsWait(APP_EVT_SEND_ACK, osFlagsWaitAny, osWaitForever);
+
+    tx_count++;
+    LORA_LOG_INFO("Sending ACK #%lu\r\n", tx_count);
+    osDelay(50);
+    lora_transmit((uint8_t *)"ACK", 3, LORA_TX_TIMEOUT);
+
+    snprintf(str1, sizeof(str1), "RX Pkt: %lu", rx_count);
+    snprintf(str2, sizeof(str2), "TX Ack: %lu", tx_count);
+    lcd_enqueue_msg(str1, str2);
   }
 #endif
 }
