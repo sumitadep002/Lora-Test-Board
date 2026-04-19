@@ -22,7 +22,7 @@ static uint8_t block_gpio_interrupt = 0;
 static const osThreadAttr_t cfg_btn_task_attributes = {
     .name = "cfg_btn_task",
     .priority = (osPriority_t)osPriorityNormal,
-    .stack_size = 128 * 4
+    .stack_size = 512 * 4
 };
 
 static void cfg_btn_task_handler(void *argument)

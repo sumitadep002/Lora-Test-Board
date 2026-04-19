@@ -23,7 +23,7 @@ static volatile bool gf_tx_done = false;
 static const osThreadAttr_t lora_task_attributes = {
     .name = "lora_task",
     .priority = (osPriority_t)osPriorityNormal,
-    .stack_size = 128 * 4
+    .stack_size = 512 * 4
 };
 
 /* --- PRIVATE FUNCTIONS PROTOTYPES -------------------------------------------- */
