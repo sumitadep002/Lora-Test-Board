@@ -72,6 +72,7 @@ extern "C"
 
 /* RX Configuration -------------------------------------------------*/
 #define LORA_RX_BOOSTED true // RX Boosted
+#define LORA_RX_TIMEOUT 5000 // RX Timeout in ms
 
 #define LORA_CHANNEL_CLEAR_ATTEMPTS 10 // Channel Clear Attempts
 
