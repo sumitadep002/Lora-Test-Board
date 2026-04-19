@@ -30,6 +30,7 @@ static const osThreadAttr_t lora_task_attributes = {
 
 static void lora_task_handler(void *argument);
 static void lora_task_init(void);
+static bool misc_sx126x_is_rx_mode(void);
 
 
 
@@ -259,6 +260,15 @@ void lora_start_rx(uint32_t timeout)
                               SX126X_IRQ_RX_DONE | SX126X_IRQ_TIMEOUT | SX126X_IRQ_CRC_ERROR,
                               SX126X_IRQ_NONE, SX126X_IRQ_NONE);
     sx126x_set_rx(NULL, timeout);
+}
+
+
+static bool misc_sx126x_is_rx_mode(void)
+{
+    sx126x_chip_status_t radio_status;
+    sx126x_get_status(NULL, &radio_status);
+    
+    return (radio_status.chip_mode == SX126X_CHIP_MODE_RX);
 }
 
 
