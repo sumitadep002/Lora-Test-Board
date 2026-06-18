@@ -15,7 +15,8 @@
 #define LCD_ADDRESS 0x3E
 #define LCD_I2C_TIMEOUT_MS 1000
 
-typedef struct {
+typedef struct
+{
     char str1[17];
     char str2[17];
 } lcd_msg_t;

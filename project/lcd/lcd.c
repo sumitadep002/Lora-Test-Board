@@ -129,7 +129,6 @@ static void lcd_task(void *argument)
     }
 }
 
-
 uint8_t lcd_enqueue_msg(const char *str1, const char *str2)
 {
     if (lcd_msg_queue == NULL)
@@ -140,8 +139,10 @@ uint8_t lcd_enqueue_msg(const char *str1, const char *str2)
     lcd_msg_t msg;
     memset(&msg, 0, sizeof(lcd_msg_t));
 
-    if (str1) strncpy(msg.str1, str1, 16);
-    if (str2) strncpy(msg.str2, str2, 16);
+    if (str1)
+        strncpy(msg.str1, str1, 16);
+    if (str2)
+        strncpy(msg.str2, str2, 16);
 
     if (osMessageQueuePut(lcd_msg_queue, &msg, 0, 0) != osOK)
     {
