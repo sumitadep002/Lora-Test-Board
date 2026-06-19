@@ -27,9 +27,13 @@ static osThreadId_t lcd_task_handle = NULL;
 // LCD Task Prototypes
 static void lcd_task(void *argument);
 static uint8_t lcd_hw_init(void);
+static void us_timer_init();
+static void delay_us(uint16_t us);
 
 // Externally defined I2C handle from main.c
 extern I2C_HandleTypeDef hi2c1;
+
+extern TIM_HandleTypeDef htim1;
 
 // --- Target Identification ---
 #define LCD_ADDR_NATIVE (0x3E << 1)
@@ -107,11 +111,23 @@ static uint8_t lcd_scan(void)
     return 0xFF;
 }
 
+static void us_timer_init()
+{
+    HAL_TIM_Base_Start(&htim1);
+}
+static void delay_us(uint16_t us)
+{
+    uint16_t start_time = __HAL_TIM_GET_COUNTER(&htim1);
+    while ((uint16_t)(__HAL_TIM_GET_COUNTER(&htim1) - start_time) < us)
+        ;
+}
+
 /**
  * @brief Initialize hardware dynamic initialization steps
  */
 static uint8_t lcd_hw_init(void)
 {
+    us_timer_init();
     if (lcd_scan() != 0)
     {
         LCD_LOG_ERR("Hardware initialization failed - device not found\r\n");
@@ -253,15 +269,12 @@ static uint8_t lcd_write_nibble(uint8_t rs, uint8_t data, uint8_t nibble_type)
     {
         return 0xFF;
     }
-    osDelay(1); // Short delay to allow LCD to process nibble
     return 0;
 }
 
 uint8_t lcd_clear(void)
 {
     uint8_t status = lcd_send_command(LCD_CMD_CLEAR);
-
-    osDelay(2); // This shall not be removed
 
     return status;
 }
@@ -277,6 +290,7 @@ static uint8_t lcd_send_command(uint8_t cmd)
             return 0xFF; // Upper
         if (lcd_write_nibble(0, cmd, 1) != 0)
             return 0xFF; // Lower
+        delay_us(500);   // Ensure command is processed
         return 0;
     }
     else // LCD_TYPE_NATIVE
@@ -303,7 +317,6 @@ static uint8_t lcd_send_data(uint8_t data)
         if (lcd_write_nibble(1, data, 1) != 0)
             return 0xFF; // Lower
 
-        osDelay(1); // Short delay to allow data processing by LCD
         return 0;
     }
     else // LCD_TYPE_NATIVE
