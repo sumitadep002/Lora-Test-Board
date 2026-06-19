@@ -253,6 +253,7 @@ static uint8_t lcd_write_nibble(uint8_t rs, uint8_t data, uint8_t nibble_type)
     {
         return 0xFF;
     }
+    osDelay(1); // Short delay to allow LCD to process nibble
     return 0;
 }
 
@@ -301,6 +302,8 @@ static uint8_t lcd_send_data(uint8_t data)
             return 0xFF; // Upper
         if (lcd_write_nibble(1, data, 1) != 0)
             return 0xFF; // Lower
+
+        osDelay(1); // Short delay to allow data processing by LCD
         return 0;
     }
     else // LCD_TYPE_NATIVE
