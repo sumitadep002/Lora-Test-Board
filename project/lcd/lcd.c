@@ -80,7 +80,7 @@ static uint8_t lcd_scan(void);
 static uint8_t lcd_compose_byte(uint8_t rs, uint8_t rw, uint8_t en, uint8_t bl, uint8_t byte_data, uint8_t nibble_type);
 static uint8_t lcd_send_command(uint8_t cmd);
 static uint8_t lcd_send_data(uint8_t data);
-static uint8_t pcf8574_write_nibble(uint8_t rs, uint8_t data, uint8_t nibble_type);
+static uint8_t lcd_write_nibble(uint8_t rs, uint8_t data, uint8_t nibble_type);
 
 /**
  * @brief Runtime evaluation scan to auto-detect hardware layout
@@ -124,13 +124,13 @@ static uint8_t lcd_hw_init(void)
     if (lcd_disp.type == LCD_TYPE_BACKPACK)
     {
         // Explicit 4-bit Handshake Sequence for PCF8574 Backpacks
-        pcf8574_write_nibble(0, 0x30, 0);
+        lcd_write_nibble(0, 0x30, 0);
         osDelay(5);
-        pcf8574_write_nibble(0, 0x30, 0);
+        lcd_write_nibble(0, 0x30, 0);
         osDelay(1);
-        pcf8574_write_nibble(0, 0x30, 0);
+        lcd_write_nibble(0, 0x30, 0);
         osDelay(1);
-        pcf8574_write_nibble(0, 0x20, 0);
+        lcd_write_nibble(0, 0x20, 0);
         osDelay(1); // Set to 4-bit interface
 
         lcd_send_command(0x28); // 4-bit execution mode, 2 rows, 5x8 font
@@ -241,7 +241,7 @@ static uint8_t lcd_compose_byte(uint8_t rs, uint8_t rw, uint8_t en, uint8_t bl, 
 /**
  * @brief Helper for discrete 4-bit edge writes via the PCF8574
  */
-static uint8_t pcf8574_write_nibble(uint8_t rs, uint8_t data, uint8_t nibble_type)
+static uint8_t lcd_write_nibble(uint8_t rs, uint8_t data, uint8_t nibble_type)
 {
     uint8_t buffer[2];
     uint8_t bl = 1; // Keep backlight functional ON
@@ -272,9 +272,9 @@ static uint8_t lcd_send_command(uint8_t cmd)
 {
     if (lcd_disp.type == LCD_TYPE_BACKPACK)
     {
-        if (pcf8574_write_nibble(0, cmd, 0) != 0)
+        if (lcd_write_nibble(0, cmd, 0) != 0)
             return 0xFF; // Upper
-        if (pcf8574_write_nibble(0, cmd, 1) != 0)
+        if (lcd_write_nibble(0, cmd, 1) != 0)
             return 0xFF; // Lower
         return 0;
     }
@@ -297,9 +297,9 @@ static uint8_t lcd_send_data(uint8_t data)
 {
     if (lcd_disp.type == LCD_TYPE_BACKPACK)
     {
-        if (pcf8574_write_nibble(1, data, 0) != 0)
+        if (lcd_write_nibble(1, data, 0) != 0)
             return 0xFF; // Upper
-        if (pcf8574_write_nibble(1, data, 1) != 0)
+        if (lcd_write_nibble(1, data, 1) != 0)
             return 0xFF; // Lower
         return 0;
     }
