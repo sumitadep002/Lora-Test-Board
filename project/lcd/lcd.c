@@ -301,6 +301,7 @@ static uint8_t lcd_send_command(uint8_t cmd)
             LCD_LOG_ERR("I2C Transmit Error (CMD 0x%02X)\r\n", cmd);
             return 0xFF;
         }
+        delay_us(500); // Ensure command is processed
         return 0;
     }
 }
