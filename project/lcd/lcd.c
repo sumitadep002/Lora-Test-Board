@@ -1,17 +1,23 @@
 /*
  * lcd.c
+ * * Dynamically supports both:
+ * 1. RG1602A-19-I2C (Native I2C Controller - 0x3E)
+ * 2. PCF8574T Backpack Variant (V13 Style - 0x27)
  *
  * Created on: Apr 5, 2026
  * Author: sumit
  */
 
+#include "lcd.h"
+
 // Standard header files
 #include <stdio.h>
 #include <string.h>
+#include <stdbool.h>
 
 // Project header files
 #include "main.h"
-#include "lcd.h"
+
 #include "cmsis_os.h"
 
 // FreeRTOS Handles
@@ -21,26 +27,46 @@ static osThreadId_t lcd_task_handle = NULL;
 // LCD Task Prototypes
 static void lcd_task(void *argument);
 static uint8_t lcd_hw_init(void);
+static void us_timer_init();
+static void delay_us(uint16_t us);
 
 // Externally defined I2C handle from main.c
 extern I2C_HandleTypeDef hi2c1;
 
-// Slave Address
-#define I2C_ADDR (LCD_ADDRESS << 1)
+extern TIM_HandleTypeDef htim1;
 
-// --- LCD Control Bytes ---
-#define LCD_CTRL_CMD 0x00  // Control byte for sending a command
-#define LCD_CTRL_DATA 0x40 // Control byte for sending text data
+// --- Target Identification ---
+#define LCD_ADDR_NATIVE (0x3E << 1)
+#define LCD_ADDR_BACKPACK (0x27 << 1)
+
+typedef enum
+{
+    LCD_TYPE_UNKNOWN = 0,
+    LCD_TYPE_NATIVE,  // RG1602A-19 Direct Native I2C
+    LCD_TYPE_BACKPACK // PCF8574T Backpack
+} lcd_type_t;
+
+typedef struct
+{
+    uint8_t i2c_addr;
+    lcd_type_t type;
+    uint8_t presence;
+} lcd_ctrl_t;
+
+static lcd_ctrl_t lcd_disp = {0, LCD_TYPE_UNKNOWN, 0};
+
+// --- Native Controller Protocol Bytes ---
+#define LCD_CTRL_CMD 0x00
+#define LCD_CTRL_DATA 0x40
 
 // LCD Commands
-// --- Table 0: Standard Commands ---
-#define LCD_CMD_CLEAR 0x01       // Clear display (Needs 2ms delay)
-#define LCD_CMD_HOME 0x02        // Cursor home (Needs 2ms delay)
-#define LCD_CMD_ENTRY_MODE 0x06  // Cursor auto-increments to the right
-#define LCD_CMD_DISP_OFF 0x08    // Display OFF
-#define LCD_CMD_DISP_ON 0x0C     // Display ON, Cursor OFF, Blink OFF
-#define LCD_CMD_DISP_ON_CUR 0x0E // Display ON, Cursor ON, Blink OFF
-#define LCD_CMD_DISP_ON_BLK 0x0F // Display ON, Cursor ON, Blink ON
+#define LCD_CMD_CLEAR 0x01
+#define LCD_CMD_HOME 0x02
+#define LCD_CMD_ENTRY_MODE 0x06
+#define LCD_CMD_DISP_OFF 0x08
+#define LCD_CMD_DISP_ON 0x0C
+#define LCD_CMD_DISP_ON_CUR 0x0E
+#define LCD_CMD_DISP_ON_BLK 0x0F
 
 // Cursor Positioning
 #define LCD_ROW_0 0x80
@@ -53,33 +79,87 @@ extern I2C_HandleTypeDef hi2c1;
 #define LCD_LOG_ERR(...)
 #endif
 
-// LCD Presence
-static uint8_t lcd_presence = 0;
-
 // LCD Local functions declarations
-static uint8_t lcd_scan();
+static uint8_t lcd_scan(void);
 static uint8_t lcd_compose_byte(uint8_t rs, uint8_t rw, uint8_t en, uint8_t bl, uint8_t byte_data, uint8_t nibble_type);
 static uint8_t lcd_send_command(uint8_t cmd);
 static uint8_t lcd_send_data(uint8_t data);
-uint8_t lcd_print_string(const char *str);
+static uint8_t lcd_write_nibble(uint8_t rs, uint8_t data, uint8_t nibble_type);
 
+/**
+ * @brief Runtime evaluation scan to auto-detect hardware layout
+ */
+static uint8_t lcd_scan(void)
+{
+    // 1. Check for Native Controller (0x3E)
+    if (HAL_I2C_IsDeviceReady(&hi2c1, LCD_ADDR_NATIVE, 1, LCD_I2C_TIMEOUT_MS) == HAL_OK)
+    {
+        lcd_disp.i2c_addr = LCD_ADDR_NATIVE;
+        lcd_disp.type = LCD_TYPE_NATIVE;
+        return 0;
+    }
+
+    // 2. Check for PCF8574 Backpack (0x27)
+    if (HAL_I2C_IsDeviceReady(&hi2c1, LCD_ADDR_BACKPACK, 1, LCD_I2C_TIMEOUT_MS) == HAL_OK)
+    {
+        lcd_disp.i2c_addr = LCD_ADDR_BACKPACK;
+        lcd_disp.type = LCD_TYPE_BACKPACK;
+        return 0;
+    }
+
+    LCD_LOG_ERR("Unable to detect any valid LCD footprint on I2C bus\r\n");
+    return 0xFF;
+}
+
+static void us_timer_init()
+{
+    HAL_TIM_Base_Start(&htim1);
+}
+static void delay_us(uint16_t us)
+{
+    uint16_t start_time = __HAL_TIM_GET_COUNTER(&htim1);
+    while ((uint16_t)(__HAL_TIM_GET_COUNTER(&htim1) - start_time) < us)
+        ;
+}
+
+/**
+ * @brief Initialize hardware dynamic initialization steps
+ */
 static uint8_t lcd_hw_init(void)
 {
+    us_timer_init();
     if (lcd_scan() != 0)
     {
         LCD_LOG_ERR("Hardware initialization failed - device not found\r\n");
         return 0xFF;
     }
 
-    osDelay(10);
+    osDelay(50); // Give hardware plenty of time to stabilize VCC
+    lcd_disp.presence = 1;
 
-    lcd_presence = 1;
+    if (lcd_disp.type == LCD_TYPE_BACKPACK)
+    {
+        // Explicit 4-bit Handshake Sequence for PCF8574 Backpacks
+        lcd_write_nibble(0, 0x30, 0);
+        osDelay(5);
+        lcd_write_nibble(0, 0x30, 0);
+        osDelay(1);
+        lcd_write_nibble(0, 0x30, 0);
+        osDelay(1);
+        lcd_write_nibble(0, 0x20, 0);
+        osDelay(1); // Set to 4-bit interface
 
-    lcd_send_command(0x38); // Set to 8 bit, 2 row configuration
-    // --- Standard Display Configuration ---
-    lcd_send_command(LCD_CMD_DISP_ON);    // Turn screen on
-    lcd_send_command(LCD_CMD_ENTRY_MODE); // Set text to print left-to-right
-    lcd_clear();                          // Clear memory
+        lcd_send_command(0x28); // 4-bit execution mode, 2 rows, 5x8 font
+    }
+    else // LCD_TYPE_NATIVE
+    {
+        lcd_send_command(0x38); // Native mode configuration (8-bit bus)
+    }
+
+    // Common Configuration Parameters
+    lcd_send_command(LCD_CMD_DISP_ON);
+    lcd_send_command(LCD_CMD_ENTRY_MODE);
+    lcd_clear();
 
     return 0;
 }
@@ -129,7 +209,6 @@ static void lcd_task(void *argument)
     }
 }
 
-
 uint8_t lcd_enqueue_msg(const char *str1, const char *str2)
 {
     if (lcd_msg_queue == NULL)
@@ -140,8 +219,10 @@ uint8_t lcd_enqueue_msg(const char *str1, const char *str2)
     lcd_msg_t msg;
     memset(&msg, 0, sizeof(lcd_msg_t));
 
-    if (str1) strncpy(msg.str1, str1, 16);
-    if (str2) strncpy(msg.str2, str2, 16);
+    if (str1)
+        strncpy(msg.str1, str1, 16);
+    if (str2)
+        strncpy(msg.str2, str2, 16);
 
     if (osMessageQueuePut(lcd_msg_queue, &msg, 0, 0) != osOK)
     {
@@ -151,22 +232,10 @@ uint8_t lcd_enqueue_msg(const char *str1, const char *str2)
     return 0;
 }
 
-uint8_t lcd_scan()
-{
-    // Check if device responds at this address
-    if (HAL_I2C_IsDeviceReady(&hi2c1, I2C_ADDR, 1, LCD_I2C_TIMEOUT_MS) == HAL_OK)
-    {
-        return 0;
-    }
-
-    LCD_LOG_ERR("Unable to detect at 0x%02X\r\n", LCD_ADDRESS);
-    return 0xff; // Return 0xFF if LCD is not found
-}
-
 /**
- * @brief Compose a byte to send to I2C LCD via PCF8574
+ * @brief Map control bits to PCF8574 expansion pinout configuration
  */
-uint8_t lcd_compose_byte(uint8_t rs, uint8_t rw, uint8_t en, uint8_t bl, uint8_t byte_data, uint8_t nibble_type)
+static uint8_t lcd_compose_byte(uint8_t rs, uint8_t rw, uint8_t en, uint8_t bl, uint8_t byte_data, uint8_t nibble_type)
 {
     uint8_t byte = 0;
 
@@ -185,11 +254,27 @@ uint8_t lcd_compose_byte(uint8_t rs, uint8_t rw, uint8_t en, uint8_t bl, uint8_t
     return byte;
 }
 
+/**
+ * @brief Helper for discrete 4-bit edge writes via the PCF8574
+ */
+static uint8_t lcd_write_nibble(uint8_t rs, uint8_t data, uint8_t nibble_type)
+{
+    uint8_t buffer[2];
+    uint8_t bl = 1; // Keep backlight functional ON
+
+    buffer[0] = lcd_compose_byte(rs, 0, 1, bl, data, nibble_type); // EN High
+    buffer[1] = lcd_compose_byte(rs, 0, 0, bl, data, nibble_type); // EN Low Edge
+
+    if (HAL_I2C_Master_Transmit(&hi2c1, lcd_disp.i2c_addr, buffer, 2, LCD_I2C_TIMEOUT_MS) != HAL_OK)
+    {
+        return 0xFF;
+    }
+    return 0;
+}
+
 uint8_t lcd_clear(void)
 {
     uint8_t status = lcd_send_command(LCD_CMD_CLEAR);
-
-    osDelay(2); // This shall not be removed
 
     return status;
 }
@@ -197,53 +282,87 @@ uint8_t lcd_clear(void)
 /**
  * @brief Send a command byte to the LCD
  */
-uint8_t lcd_send_command(uint8_t cmd)
+static uint8_t lcd_send_command(uint8_t cmd)
 {
-    uint8_t buffer[2];
-    buffer[0] = LCD_CTRL_CMD; // Control byte: RS = 0
-    buffer[1] = cmd;          // The actual command
-
-    if (HAL_I2C_Master_Transmit(&hi2c1, I2C_ADDR, buffer, sizeof(buffer), LCD_I2C_TIMEOUT_MS) != HAL_OK)
+    if (lcd_disp.type == LCD_TYPE_BACKPACK)
     {
-        LCD_LOG_ERR("I2C Transmit Error (CMD 0x%02X)\r\n", cmd);
-        return 0xFF;
+        if (lcd_write_nibble(0, cmd, 0) != 0)
+            return 0xFF; // Upper
+        if (lcd_write_nibble(0, cmd, 1) != 0)
+            return 0xFF; // Lower
+        delay_us(500);   // Ensure command is processed
+        return 0;
     }
-    return 0;
+    else // LCD_TYPE_NATIVE
+    {
+        uint8_t buffer[2] = {LCD_CTRL_CMD, cmd};
+        if (HAL_I2C_Master_Transmit(&hi2c1, lcd_disp.i2c_addr, buffer, 2, LCD_I2C_TIMEOUT_MS) != HAL_OK)
+        {
+            LCD_LOG_ERR("I2C Transmit Error (CMD 0x%02X)\r\n", cmd);
+            return 0xFF;
+        }
+        delay_us(500); // Ensure command is processed
+        return 0;
+    }
 }
 
 /**
  * @brief Send a data byte to the LCD
  */
-uint8_t lcd_send_data(uint8_t data)
+static uint8_t lcd_send_data(uint8_t data)
 {
-    uint8_t buffer[2];
-    buffer[0] = LCD_CTRL_DATA; // Control byte: RS = 1
-    buffer[1] = data;          // The actual Data
-
-    if (HAL_I2C_Master_Transmit(&hi2c1, I2C_ADDR, buffer, sizeof(buffer), LCD_I2C_TIMEOUT_MS) != HAL_OK)
+    if (lcd_disp.type == LCD_TYPE_BACKPACK)
     {
-        LCD_LOG_ERR("I2C Transmit Error (DATA 0x%02X)\r\n", data);
-        return 0xFF;
+        if (lcd_write_nibble(1, data, 0) != 0)
+            return 0xFF; // Upper
+        if (lcd_write_nibble(1, data, 1) != 0)
+            return 0xFF; // Lower
+
+        return 0;
     }
-    return 0;
+    else // LCD_TYPE_NATIVE
+    {
+        uint8_t buffer[2] = {LCD_CTRL_DATA, data};
+        if (HAL_I2C_Master_Transmit(&hi2c1, lcd_disp.i2c_addr, buffer, 2, LCD_I2C_TIMEOUT_MS) != HAL_OK)
+        {
+            LCD_LOG_ERR("I2C Transmit Error (DATA 0x%02X)\r\n", data);
+            return 0xFF;
+        }
+        return 0;
+    }
 }
 
 uint8_t lcd_print_string(const char *str)
 {
-    uint8_t buffer[17];
-    uint8_t index = 0;
+    if (str == NULL)
+        return 0xFF;
 
-    buffer[index++] = LCD_CTRL_DATA;
-
-    while (*str && index < sizeof(buffer))
+    if (lcd_disp.type == LCD_TYPE_BACKPACK)
     {
-        buffer[index++] = (uint8_t)(*str++);
+        // PCF8574 must process and latch data byte-by-byte
+        while (*str)
+        {
+            if (lcd_send_data((uint8_t)(*str++)) != 0)
+                return 0xFF;
+        }
     }
-
-    if (HAL_I2C_Master_Transmit(&hi2c1, I2C_ADDR, buffer, index, LCD_I2C_TIMEOUT_MS) != HAL_OK)
+    else // LCD_TYPE_NATIVE
     {
-        LCD_LOG_ERR("I2C Transmit Error (STRING)\r\n");
-        return 0xff;
+        // Native controllers support direct block array streaming natively
+        uint8_t buffer[17];
+        uint8_t index = 0;
+
+        buffer[index++] = LCD_CTRL_DATA;
+        while (*str && index < sizeof(buffer))
+        {
+            buffer[index++] = (uint8_t)(*str++);
+        }
+
+        if (HAL_I2C_Master_Transmit(&hi2c1, lcd_disp.i2c_addr, buffer, index, LCD_I2C_TIMEOUT_MS) != HAL_OK)
+        {
+            LCD_LOG_ERR("I2C Transmit Error (STRING)\r\n");
+            return 0xFF;
+        }
     }
 
     return 0;
